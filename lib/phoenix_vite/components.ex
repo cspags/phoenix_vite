@@ -47,6 +47,7 @@ defmodule PhoenixVite.Components do
   attr :names, :list, required: true
   attr :manifest, :any, required: true
   attr :to_url, {:fun, 1}, default: &Function.identity/1
+  attr :is_react?, :boolean, default: false
   attr :dev_server, :boolean, default: false
 
   def assets(%{dev_server: true} = assigns) do
@@ -62,10 +63,18 @@ defmodule PhoenixVite.Components do
   """
   attr :names, :list, required: true
   attr :to_url, {:fun, 1}, default: &Function.identity/1
+  attr :is_react?, :boolean, default: false
 
   # https://vite.dev/guide/backend-integration.html
   def assets_from_dev_server(assigns) do
     ~H"""
+    <script :if={@is_react?} type="module">
+      import RefreshRuntime from '<%= @to_url.("/@react-refresh") %>'
+      RefreshRuntime.injectIntoGlobalHook(window)
+      window.$RefreshReg$ = () => {}
+      window.$RefreshSig$ = () => (type) => type
+      window.__vite_plugin_react_preamble_installed__ = true
+    </script>
     <script phx-track-static type="module" src={@to_url.("/@vite/client")}>
     </script>
     <.reference_for_file :for={name <- @names} file={name} to_url={@to_url} />
@@ -95,6 +104,7 @@ defmodule PhoenixVite.Components do
     />
     """
   end
+
 
   attr :name, :string, required: true
   attr :manifest, :map, required: true
@@ -134,7 +144,7 @@ defmodule PhoenixVite.Components do
   defp reference_for_file(assigns) do
     ~H"""
     <script
-      :if={Path.extname(@file) == ".js"}
+      :if={Enum.member?([".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"], Path.extname(@file))}
       phx-track-static
       type="module"
       src={@to_url.(cache_enabled_path(@file, @cache))}
