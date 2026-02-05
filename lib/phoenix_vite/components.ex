@@ -139,12 +139,23 @@ defmodule PhoenixVite.Components do
   attr :file, :string, required: true
   attr :to_url, {:fun, 1}, required: true
   attr :cache, :boolean, default: false
+  attr :rel, :string, default: nil
   attr :rest, :global
 
   defp reference_for_file(assigns) do
+    js_extensions = [".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"]
+    assigns = assign(assigns, is_js: Path.extname(assigns.file) in js_extensions)
+
     ~H"""
+    <link
+      :if={@is_js && @rel == "modulepreload"}
+      phx-track-static
+      rel="modulepreload"
+      href={@to_url.(cache_enabled_path(@file, @cache))}
+      {@rest}
+    />
     <script
-      :if={Enum.member?([".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"], Path.extname(@file))}
+      :if={@is_js && @rel != "modulepreload"}
       phx-track-static
       type="module"
       src={@to_url.(cache_enabled_path(@file, @cache))}
@@ -162,7 +173,13 @@ defmodule PhoenixVite.Components do
   end
 
   defp cache_enabled_path(path, true) do
-    "/" |> Path.join(path) |> URI.parse() |> URI.append_query("vsn=d") |> URI.to_string()
+    base = "/" |> Path.join(path) |> URI.parse()
+
+    if Path.extname(path) in [".js", ".mjs"] do
+      URI.to_string(base)
+    else
+      base |> URI.append_query("vsn=d") |> URI.to_string()
+    end
   end
 
   defp cache_enabled_path(path, false) do
